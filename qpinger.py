@@ -6,7 +6,7 @@
 from PyQt6.QtWidgets import QGroupBox,QCheckBox, QPushButton, QHBoxLayout, QVBoxLayout, QLabel, QFrame, QLineEdit, QFileDialog, QComboBox
 from PyQt6.QtCore import Qt,QTimer
 from datetime import datetime
-import time,logging,os,ping3,netifaces
+import time,logging,os,socket,ping3,netifaces
 
 ##\class ConfigBox
 # \brief Class to display a label + edit control for simple configuration
@@ -230,8 +230,7 @@ class QPinger(QFrame):
 
         # Add some default reference targets
         gw=netifaces.gateways()
-        if 'default' in gw:
-            self.addtarget('Gateway',gw['default'][netifaces.AF_INET][0])
+        if 'default' in gw: self.addtarget('Gateway',gw['default'][netifaces.AF_INET][0])
         self.addtarget('Google','google.com')
 
         # Some simple runtime variables
@@ -364,7 +363,7 @@ class QPinger(QFrame):
             name,address=self.cfg_items.parseitem(i)
             self.ydata.append([])
             self.filteracc.append(0.0)
-            self.legend.append(name)
+            self.legend.append(name+' ['+address+']')
 
         # Set UI state
         self.cfg_newitem.setEnabled(False)
@@ -398,10 +397,16 @@ class QPinger(QFrame):
     def additem(self):
         # Validate inputs
         if len(self.cfg_newitem.name.text())==0:
-            logging.error('Invalid name!')
+            logging.error('No name given!')
             return
         if len(self.cfg_newitem.address.text())==0:
-            logging.error('Invalid address!')
+            logging.error('No address given!')
+            return
+        try:
+            address=socket.gethostbyname(self.cfg_newitem.address.text())
+            self.cfg_newitem.address.setText(address)
+        except Exception as e:
+            logging.error('Invalid address: '+str(e))
             return
         
         # Create a new item with the current settings
@@ -423,3 +428,4 @@ class QPinger(QFrame):
         item=self.sender()
         item=self.cfg_items.finditem(item)
         if item!=None: self.cfg_items.remitem(item)
+
