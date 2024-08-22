@@ -366,8 +366,8 @@ class QPinger(QFrame):
         self.ctrl_stop.setEnabled(True)
         self.opt_label.setEnabled(False)
         self.opt_csv.setEnabled(False)
-        self.next=self.nexttimeout()
         self.running=True
+        self.next=0
 
     ##\brief Adds an target to be logged
     # \param name Name of ping target

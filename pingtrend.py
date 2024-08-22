@@ -18,7 +18,7 @@ from qlog import *
 # Simple identification
 appversion='0.6.0'
 appname='PingTrend'
-pkgstring=appversion+' '+appversion
+pkgstring=appname+' '+appversion
 aboutstring=pkgstring+'\n'
 aboutstring+='Simple tool to trend and log ping times\n'
 aboutstring+='vegard@fiksdal.cc\n'
