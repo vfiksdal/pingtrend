@@ -23,7 +23,7 @@ class QPlot(FigureCanvas):
     # \param yfmt Formatter for y-axis
     # \param xlimit Min-max tuple to set fixed scaling on x-axis
     # \param ylimit Min-max tuple to set fixed scaling on y-axis
-    def __init__(self,title='',xtitle='',ytitle='',xfmt=None,yfmt=None,xlimit=None,ylimit=None):
+    def __init__(self,title='',xtitle='',ytitle='',grid=True,xfmt=None,yfmt=None,xlimit=None,ylimit=None):
         fig = Figure()
         self.axes = fig.add_subplot(111)
         self.axes.format_coord=lambda x,y: f"x={x:.4f}, y={y:.4f}"
@@ -32,6 +32,7 @@ class QPlot(FigureCanvas):
         self.title=title
         self.xtitle=xtitle
         self.ytitle=ytitle
+        self.grid=grid
         self.xfmt=xfmt
         self.yfmt=yfmt
         self.xlimit=xlimit
@@ -63,7 +64,7 @@ class QPlot(FigureCanvas):
             [renderer.plot(self.xdata,self.ydata[i]) for i in range(len(self.ydata))]
         if self.vlines: [renderer.axvline(l,color='red',linestyle='--',linewidth=1) for l in self.vlines]
         if self.hlines: [renderer.axhline(l,color='red',linestyle='--',linewidth=1) for l in self.hlines]
-        renderer.grid()
+        if self.grid:   renderer.grid()
 
     ##\brief Handles doubleclicks to plot current dataset in another window
     # \param event Not used
@@ -76,7 +77,7 @@ class QPlot(FigureCanvas):
             if len(self.ytitle): plt.ylabel(self.ytitle)
             plt.show()
         except Exception as e:
-            logging.error('Failed to open interactive plot:\n'+str(e))
+            logging.error('Failed to open interactive plot: '+str(e))
             plt.ioff()
 
     ##\brief Plots a dataset using Y-axis data
@@ -128,7 +129,7 @@ class QStyledPlot(QFrame):
     # \param xlimit Min-max tuple to set fixed scaling on x-axis
     # \param ylimit Min-max tuple to set fixed scaling on y-axis
     # \param mplstyle Matplotlib style to apply
-    def __init__(self,title='',xtitle='',ytitle='',xfmt=None,yfmt=None,xlimit=None,ylimit=None,mplstyle='default'):
+    def __init__(self,title='',xtitle='',ytitle='',grid=False,xfmt=None,yfmt=None,xlimit=None,ylimit=None,mplstyle='default'):
         super().__init__()
         plt.style.use(mplstyle)
         self.mplstyle=mplstyle

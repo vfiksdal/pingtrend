@@ -199,6 +199,7 @@ class QPinger(QFrame):
         ctrl_layout=QVBoxLayout()
         self.ctrl_group=QGroupBox('Ping settings')
         self.ctrl_interval=ConfigBox('Ping interval [s]',60)
+        self.ctrl_filtertk=ConfigBox('Average over N samples (<=1 to disable)',4)
         self.ctrl_nsamples=ConfigBox('Number of samples in plot',100)
         self.ctrl_path=BrowseBox('Path for logged data')
         self.ctrl_style=ComboBox('Plot style')
@@ -208,6 +209,7 @@ class QPinger(QFrame):
         self.ctrl_stop.clicked.connect(self.stopPinging)
         self.ctrl_group.setLayout(ctrl_layout)
         ctrl_layout.addWidget(self.ctrl_interval)
+        ctrl_layout.addWidget(self.ctrl_filtertk)
         ctrl_layout.addWidget(self.ctrl_nsamples)
         ctrl_layout.addWidget(self.ctrl_style)
         ctrl_layout.addWidget(self.ctrl_path)
@@ -280,6 +282,8 @@ class QPinger(QFrame):
                     csv+=',Cannot resolve'
                 else:
                     result*=1000
+                    if self.filteracc[index]==0: self.filteracc[index]=result
+                    if self.filtertk>1: result=(self.filteracc[index]*(self.filtertk-1)+result)/self.filtertk
                     logging.debug(item.name.text()+': '+item.address.text()+' '+str(result)+'ms')
                     csv+=','+str(result)
                     self.ydata[index][-1]=result
@@ -302,6 +306,7 @@ class QPinger(QFrame):
         self.cfg_items.setEnabled(True)
         self.cfg_group.setEnabled(True)
         self.ctrl_interval.setEnabled(True)
+        self.ctrl_filtertk.setEnabled(True)
         self.ctrl_nsamples.setEnabled(True)
         self.ctrl_style.setEnabled(True)
         self.ctrl_path.setEnabled(True)
@@ -328,6 +333,11 @@ class QPinger(QFrame):
         if self.nsamples<0:
             logging.error('Number of samples must be a numeric value')
             return
+        self.filtertk=self.ctrl_filtertk.GetValue(-1)
+        if self.filtertk<0:
+            logging.error('Filter Tk must be a numeric value')
+            return
+
 
         # Prepare CSV file for writing
         if self.opt_csv.isChecked():
@@ -349,9 +359,11 @@ class QPinger(QFrame):
         self.xdata=[]
         self.ydata=[]
         self.legend=[]
+        self.filteracc=[]
         for i in range(len(self.cfg_items.items)):
             name,address=self.cfg_items.parseitem(i)
             self.ydata.append([])
+            self.filteracc.append(0.0)
             self.legend.append(name)
 
         # Set UI state
@@ -359,6 +371,7 @@ class QPinger(QFrame):
         self.cfg_items.setEnabled(False)
         self.cfg_group.setEnabled(False)
         self.ctrl_interval.setEnabled(False)
+        self.ctrl_filtertk.setEnabled(False)
         self.ctrl_nsamples.setEnabled(False)
         self.ctrl_style.setEnabled(False)
         self.ctrl_path.setEnabled(False)
