@@ -139,7 +139,7 @@ class MainWindow(QMainWindow):
         self.log.updateLog()
 
 # Start application
-f __name__ == "__main__":
+if __name__ == "__main__":
     app=QApplication(sys.argv)
     window=MainWindow()
     app.exec()
