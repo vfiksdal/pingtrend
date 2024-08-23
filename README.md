@@ -6,6 +6,13 @@ First install a python3 distribution of your choice, winpython works well for wi
 Then you need to install some dependencies:
 >python -m pip install matplotlib ping3 netifaces
 
-Now you can start the program:
+# Usage
+To start the program:
 >python pingtrend.py
+
+![image](https://github.com/user-attachments/assets/edb15bd7-e74f-41f2-9b40-afe38cc75d3a)
+
+After adding target domain names and setting the proper interval you can click start:
+
+![image](https://github.com/user-attachments/assets/62e8cdca-a954-4279-bae2-42212b5e9dec)
 
