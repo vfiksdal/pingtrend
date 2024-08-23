@@ -16,7 +16,7 @@ from qplot import *
 from qlog import *
 
 # Simple identification
-appversion='0.7.0'
+appversion='0.7.1'
 appname='PingTrend'
 pkgstring=appname+' '+appversion
 aboutstring=pkgstring+'\n'

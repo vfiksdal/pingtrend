@@ -378,7 +378,7 @@ class QPinger(QFrame):
 
         # Prepare CSV file for writing
         if self.opt_csv.isChecked():
-            folder=self.ctrl_path.getValue()+'/'
+            folder=self.ctrl_path.edit.text()+'/'
             filename=datetime.now().strftime('PingTrend - %Y%m%d %H%M%S')+'.csv'
             path=folder+filename
             try:
