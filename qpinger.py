@@ -6,7 +6,7 @@
 from PyQt6.QtWidgets import QGroupBox,QCheckBox, QPushButton, QHBoxLayout, QVBoxLayout, QLabel, QFrame, QLineEdit, QFileDialog, QComboBox
 from PyQt6.QtCore import Qt,QTimer
 from datetime import datetime
-import time,logging,os,socket,ping3,netifaces
+import time,logging,os,socket,ping3,netifaces,json
 
 ##\class ConfigBox
 # \brief Class to display a label + edit control for simple configuration
@@ -125,11 +125,17 @@ class PingItems(QFrame):
     # \return Number of items loaded
     def count(self):
         return len(self.items)
-    
+
+    ##\brief Remove all items
+    def clear(self):
+        for item in self.items:
+            self.remItem(item)
+            self.clear()
+
     ##\brief Find an item from the pressed button object
     # \param button The button object that issued the original event
     # \return PingItemBox instance associated with the button, or None upon failure
-    def finditem(self,button):
+    def findItem(self,button):
         for item in self.items:
             if item.button==button:
                 return item
@@ -138,7 +144,7 @@ class PingItems(QFrame):
     ##\brief Parse an item into address and channels
     # \param index Index of the item to parse
     # \return address, ultrasound channel, temperature channel as tuple
-    def parseitem(self,index):
+    def parseItem(self,index):
         item=self.items[index]
         name=item.name.text()
         address=item.address.text()
@@ -146,13 +152,13 @@ class PingItems(QFrame):
 
     ##\brief Add a PingItemBox instance
     # \param item Object to add
-    def additem(self,item):
+    def addItem(self,item):
         self.items.append(item)
         self.ilayout.addWidget(item)
 
     ##\brief Remove a PingItemBox instance
     # \param item Object to remove
-    def remitem(self,item):
+    def remItem(self,item):
         self.items.remove(item)
         self.ilayout.removeWidget(item)
 
@@ -178,9 +184,9 @@ class QPinger(QFrame):
         self.cfg_group=QGroupBox('Ping items')
         self.cfg_newitem=PingItemBox()
         self.cfg_newitem.button.setText('Add')
-        self.cfg_newitem.button.clicked.connect(self.additem)
-        self.cfg_newitem.address.editingFinished.connect(self.address_changed)
-        self.cfg_newitem.name.editingFinished.connect(self.name_changed)
+        self.cfg_newitem.button.clicked.connect(self.addItem)
+        self.cfg_newitem.address.editingFinished.connect(self.addressChanged)
+        self.cfg_newitem.name.editingFinished.connect(self.nameChanged)
         self.cfg_group.setLayout(cfg_layout)
         cfg_layout.addWidget(self.cfg_items)
         cfg_layout.addWidget(QLabel(''),1)
@@ -203,8 +209,12 @@ class QPinger(QFrame):
         self.ctrl_nsamples=ConfigBox('Number of samples in plot',100)
         self.ctrl_path=BrowseBox('Path for logged data')
         self.ctrl_style=ComboBox('Plot style')
+        self.ctrl_load=QPushButton('Load configuration')
+        self.ctrl_save=QPushButton('Save configuration')
         self.ctrl_start=QPushButton('Start pinging')
         self.ctrl_stop=QPushButton('Stop pinging')
+        self.ctrl_load.clicked.connect(lambda: self.loadConfig(str(QFileDialog.getOpenFileName(self,'Load configuration','','Config file(*.cfg);;All Files(*.*)')[0])))
+        self.ctrl_save.clicked.connect(lambda: self.saveConfig(str(QFileDialog.getSaveFileName(self,'Save configuration','','Config file(*.cfg);;All Files(*.*)')[0])))
         self.ctrl_start.clicked.connect(self.startPinging)
         self.ctrl_stop.clicked.connect(self.stopPinging)
         self.ctrl_group.setLayout(ctrl_layout)
@@ -214,8 +224,8 @@ class QPinger(QFrame):
         ctrl_layout.addWidget(self.ctrl_style)
         ctrl_layout.addWidget(self.ctrl_path)
         ctrl_layout.addLayout(ctrl_options)
-        ctrl_layout.addWidget(self.ctrl_start)
-        ctrl_layout.addWidget(self.ctrl_stop)
+        ctrl_layout.addWidget(self.ctrl_load)
+        ctrl_layout.addWidget(self.ctrl_save)
         ctrllayout.addWidget(self.ctrl_group)
         self.ctrl_style.combo.addItem('default')
         self.ctrl_style.combo.addItem('classic')
@@ -225,13 +235,15 @@ class QPinger(QFrame):
         # Wrap up dialog
         layout.addLayout(pinglayout,1)
         layout.addLayout(ctrllayout)
+        layout.addWidget(self.ctrl_start)
+        layout.addWidget(self.ctrl_stop)
         layout.setContentsMargins(0,0,0,0)
         self.setLayout(layout)
 
         # Add some default reference targets
         gw=netifaces.gateways()
-        if 'default' in gw: self.addtarget('Gateway',gw['default'][netifaces.AF_INET][0])
-        self.addtarget('Google','google.com')
+        if 'default' in gw: self.addTarget('Gateway',gw['default'][netifaces.AF_INET][0])
+        self.addTarget('Google','google.com')
 
         # Some simple runtime variables
         self.running=False
@@ -239,19 +251,53 @@ class QPinger(QFrame):
         self.fd=None
         self.stopPinging()
 
+    def loadConfig(self,filename):
+        if len(filename)==0: return
+        with open(filename,'r') as fd:
+            config=fd.read()
+        config=json.loads(config)
+        try:
+            self.ctrl_interval.edit.setText(str(config['settings']['interval']))
+            self.ctrl_filtertk.edit.setText(str(config['settings']['filtertk']))
+            self.ctrl_nsamples.edit.setText(str(config['settings']['nsamples']))
+            self.ctrl_path.edit.setText(str(config['settings']['path']))
+            self.ctrl_style.combo.setCurrentIndex(config['settings']['style'])
+            self.cfg_items.clear()
+            for target in config['targets']:
+                self.addTarget(target[0],target[1])
+        except Exception as e:
+            logging.error('Failed to read configuration: '+str(e))
+
+    def saveConfig(self,filename):
+        if len(filename)==0: return
+        config={}
+        config['settings']={}
+        config['settings']['interval']=int(self.ctrl_interval.GetValue(60))
+        config['settings']['filtertk']=int(self.ctrl_filtertk.GetValue(4))
+        config['settings']['nsamples']=int(self.ctrl_nsamples.GetValue(100))
+        config['settings']['path']=self.ctrl_path.edit.text()
+        config['settings']['style']=self.ctrl_style.combo.currentIndex()
+        config['targets']=[]
+        for index in range(len(self.cfg_items.items)):
+            name,address=self.cfg_items.parseItem(index)
+            config['targets'].append([name,address])
+        config=json.dumps(config,indent=4)
+        with open(filename,'w') as fd:
+            fd.write(config)
+
     ##\brief Set name to address if empty
-    def address_changed(self):
+    def addressChanged(self):
         if self.cfg_newitem.name.text()=='':
             self.cfg_newitem.name.setText(self.cfg_newitem.address.text())
 
     ##\brief Set address to name if empty
-    def name_changed(self):
+    def nameChanged(self):
         if self.cfg_newitem.address.text()=='':
             self.cfg_newitem.address.setText(self.cfg_newitem.name.text())
 
     ##\brief Calculates next pinging slot
     # \return Next pinging slot in seconds
-    def nexttimeout(self):
+    def nextTimeout(self):
         now=time.time()
         return now+(self.interval-(now%self.interval))
     
@@ -259,7 +305,7 @@ class QPinger(QFrame):
     def updatePing(self):
         if self.running and time.time()>=self.next:
             # Execute requests
-            self.next=self.nexttimeout()
+            self.next=self.nextTimeout()
             for i in range(self.cfg_items.count()):
                 item=self.cfg_items.items[i]
                 item.result=ping3.ping(item.address.text())
@@ -301,18 +347,10 @@ class QPinger(QFrame):
     ##\brief Stops timer and resets dialog
     def stopPinging(self):
         self.running=False
-        self.cfg_newitem.setEnabled(True)
-        self.cfg_items.setEnabled(True)
         self.cfg_group.setEnabled(True)
-        self.ctrl_interval.setEnabled(True)
-        self.ctrl_filtertk.setEnabled(True)
-        self.ctrl_nsamples.setEnabled(True)
-        self.ctrl_style.setEnabled(True)
-        self.ctrl_path.setEnabled(True)
         self.ctrl_start.setEnabled(True)
         self.ctrl_stop.setEnabled(False)
-        self.opt_label.setEnabled(True)
-        self.opt_csv.setEnabled(True)
+        self.ctrl_group.setEnabled(True)
         if self.fd!=None: self.fd.close()
         self.fd=None
 
@@ -347,7 +385,7 @@ class QPinger(QFrame):
                 self.fd = open(path,'w')
                 csv='Time'
                 for index in range(len(self.cfg_items.items)):
-                    name,address=self.cfg_items.parseitem(index)
+                    name,address=self.cfg_items.parseItem(index)
                     csv+=','+name
                 self.fd.write(csv+'\n')
             except:
@@ -360,41 +398,33 @@ class QPinger(QFrame):
         self.legend=[]
         self.filteracc=[]
         for i in range(len(self.cfg_items.items)):
-            name,address=self.cfg_items.parseitem(i)
+            name,address=self.cfg_items.parseItem(i)
             self.ydata.append([])
             self.filteracc.append(0.0)
             self.legend.append(name+' ['+address+']')
 
         # Set UI state
-        self.cfg_newitem.setEnabled(False)
-        self.cfg_items.setEnabled(False)
         self.cfg_group.setEnabled(False)
-        self.ctrl_interval.setEnabled(False)
-        self.ctrl_filtertk.setEnabled(False)
-        self.ctrl_nsamples.setEnabled(False)
-        self.ctrl_style.setEnabled(False)
-        self.ctrl_path.setEnabled(False)
         self.ctrl_start.setEnabled(False)
         self.ctrl_stop.setEnabled(True)
-        self.opt_label.setEnabled(False)
-        self.opt_csv.setEnabled(False)
+        self.ctrl_group.setEnabled(False)
         self.running=True
         self.next=0
 
     ##\brief Adds an target to be logged
     # \param name Name of ping target
     # \param address Address of ping target
-    def addtarget(self,name,address):
+    def addTarget(self,name,address):
         oldname=self.cfg_newitem.name.text()
         oldaddress=self.cfg_newitem.address.text()
         self.cfg_newitem.name.setText(name)
         self.cfg_newitem.address.setText(address)
-        self.additem()
+        self.addItem()
         self.cfg_newitem.name.setText(oldname)
         self.cfg_newitem.address.setText(oldaddress)
 
     ##\brief Adds an item to be logged
-    def additem(self):
+    def addItem(self):
         # Validate inputs
         if len(self.cfg_newitem.name.text())==0:
             logging.error('No name given!')
@@ -416,16 +446,16 @@ class QPinger(QFrame):
         newitem.name.setEnabled(False)
         newitem.address.setEnabled(False)
         newitem.button.setText('Remove')
-        newitem.button.clicked.connect(self.remitem)
-        self.cfg_items.additem(newitem)
+        newitem.button.clicked.connect(self.remItem)
+        self.cfg_items.addItem(newitem)
 
         # Clear configuration item
         self.cfg_newitem.name.setText('')
         self.cfg_newitem.address.setText('')
 
     ##\brief Removes an item from the logging schedule
-    def remitem(self):
+    def remItem(self):
         item=self.sender()
-        item=self.cfg_items.finditem(item)
-        if item!=None: self.cfg_items.remitem(item)
+        item=self.cfg_items.findItem(item)
+        if item!=None: self.cfg_items.remItem(item)
 
